@@ -1,9 +1,9 @@
 module IVectors
 
-using GMMs
+using GaussianMixtures
 
 export svec, IExtractor, ivector
-
-include("ivectors.jl")
+include("types.jl")
+include("ivector.jl")
 
 end
