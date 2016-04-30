@@ -68,7 +68,7 @@ function updatevΣ{T<:AbstractFloat,T2}(S::Vector{Cstats{T,T2}}, ex::Vector, v::
 end
 
 ## Train an ivector extractor matrix
-function IExtractor{T1<:AbstractFloat,T2}(S::Vector{Cstats{T1,T2}}, ubm::GMM, nvoices::Int; nIter=7, updateΣ=false)
+function IExtractor{T1<:AbstractFloat,T2}(ubm::GMM, S::Vector{Cstats{T1,T2}}, nvoices::Int; nIter=7, updateΣ=false)
     ng, nfea = size(first(S).F)
     v = randn(ng*nfea, nvoices) * sum(ubm.Σ) * 0.001
     Σ = ubm.Σ
@@ -84,6 +84,8 @@ function IExtractor{T1<:AbstractFloat,T2}(S::Vector{Cstats{T1,T2}}, ubm::GMM, nv
     end
     IExtractor(v, Σ)
 end
+## backwards compatibility
+IExtractor{T1<:AbstractFloat,T2}(S::Vector{Cstats{T1,T2}}, ubm::GMM, nvoices::Int; nIter=7) = IExtractor(ubm, S, nvoices)
 
 # extract an ivector using T-matrix and uncentered stats
 function ivector(ie::IExtractor, s::Cstats)
