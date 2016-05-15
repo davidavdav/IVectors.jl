@@ -29,7 +29,7 @@ end
 
 ## same for an array of stats
 function expectation{T1,T2}(s::Vector{Cstats{T1,T2}}, v::Matrix, Σ::Matrix)
-    map(x->expectation(x, v,  Σ), s)
+    pmap(x->expectation(x, v,  Σ), s)
 end
 
 ## update v and Σ according to the maximum likelihood re-estimation,
