@@ -5,12 +5,12 @@
 ## for g in Gaussians for f in features X[g,f] end end
 svec(x::Matrix) = vec(x')
 
-## inv(I + x), but doing I + x in-memory
-function invIplusx!{T}(x::Matrix{T})
+## I + x, but doing I + x in-memory
+function Iplusx!{T}(x::Matrix{T})
     for i in 1:size(x,1)
         x[i,i] += one(T)
     end
-    return inv(x)
+    return x
 end
 
 ## compute variance and mean of the posterior distribution of the hidden variables
@@ -21,12 +21,12 @@ end
 function posterior{T<:AbstractFloat}(s::Cstats{T}, v::Matrix{T}, Σ::Matrix{T})
     svl, nv = size(v)
     @assert prod(size(s.F)) == prod(size(Σ)) == svl
-    Nprec = svec(broadcast(/, s.N, Σ))  # svl; use correct order in super vector
-    ## cov = inv(I + v' * broadcast(*, Nprec, v)) # inv(l), a nv * nv matrix; Nmul: svl * nv + svl * nv^2
-    vᵀNΛv = v' * broadcast(*, Nprec, v)
-    cov = invIplusx!(vᵀNΛv)
-    Fprec =  svec(s.F ./ Σ)             # svl
-    μ = cov * (v' * Fprec)              # Nmul: svl * nv + nv^2
+    NΛ = svec(broadcast(/, s.N, Σ))  # svl; use correct order in super vector
+    ## cov = inv(I + v' * broadcast(*, NΛ, v)) # inv(l), a nv * nv matrix; Nmul: svl * nv + svl * nv^2
+    vᵀNΛv = v' * broadcast(*, NΛ, v)
+    cov = inv(Iplusx!(vᵀNΛv))
+    FΛ =  svec(s.F ./ Σ)                # svl
+    μ = cov * (v' * FΛ)                 # Nmul: svl * nv + nv^2
     μ, cov                              # nv and nv * nv
 end
 
@@ -115,10 +115,13 @@ IExtractor{T1<:AbstractFloat,T2}(S::Vector{Cstats{T1,T2}}, ubm::GMM, nvoices::In
 
 # extract an ivector using T-matrix and uncentered stats
 function ivector(ie::IExtractor, s::Cstats)
-    nv = size(ie.Tᵀ,1)
+    nv = size(ie.Tᵀ, 1)
     ng = length(s.N)
-    nfea = div(length(ie.prec), ng)
-    TᵀΣF = ie.Tᵀ * (svec(s.F) .* ie.prec)
-    Nprec = vec(broadcast(*, s.N', reshape(ie.prec, nfea, ng))) # Kenny-order
-    w = inv(eye(nv) + ie.Tᵀ * broadcast(*, Nprec, ie.Tᵀ')) * TᵀΣF
+    nfea = length(ie.Λ) ÷ ng
+    TᵀΣF = ie.Tᵀ * (svec(s.F) .* ie.Λ)
+    NΛ = vec(broadcast(*, s.N', reshape(ie.Λ, nfea, ng))) # Kenny-order
+    ## w = inv(eye(nv) + ie.Tᵀ * broadcast(*, NΛ, ie.Tᵀ')) * TᵀΣF
+    TᵀNΛT = ie.Tᵀ * broadcast(*, NΛ, ie.Tᵀ')
+    w = Iplusx!(TᵀNΛT) \ TᵀΣF
+    return w
 end
