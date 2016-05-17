@@ -93,6 +93,27 @@ function updatevΣ{T<:AbstractFloat,T2}(S::Vector{Cstats{T,T2}}, ex::Vector, v::
     end
 end
 
+import GaussianMixtures.em!
+
+function em!{T1,T2}(ie::IExtractor{T1}, S::Vector{Cstats{T1,T2}}; nIter=1, updateΣ=false)
+    v = ie.Tᵀ'
+    ng = length(S[1].N)
+    nfea = length(ie.Λ) ÷ ng
+    Σ = reshape(ie.Λ, nfea, ng)'
+    for i=1:nIter
+        print("Iteration ", i, "...")
+        ex = expectation(S, v, Σ)
+        if updateΣ
+            v, Σ = updatevΣ(S, ex, v, updateΣ=true)
+        else
+            v = updatevΣ(S, ex, v)
+        end
+        println("done")
+    end
+    ie.Tᵀ = v'
+    return ie
+end
+
 ## Train an ivector extractor matrix
 function IExtractor{T1<:AbstractFloat,T2}(ubm::GMM, S::Vector{Cstats{T1,T2}}, nvoices::Int; nIter=7, updateΣ=false)
     ng, nfea = size(first(S).F)

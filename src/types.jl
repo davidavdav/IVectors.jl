@@ -3,9 +3,9 @@
 ## It is difficult to decide how to store T and Σ, as T' and vec(Λ)?
 type IExtractor{T<:AbstractFloat}
     Tᵀ::Matrix{T}
-    Λ::Vector{T}
+    Λ::Vector{T} ## Kenny-order precision, "gaussian index"-major
     function IExtractor(Tee::Matrix, Λ::Vector)
-        @assert size(Tee,1) == length(Λ)
+        size(Tee,1) == length(Λ) || throw(DimensionMismatch)
         new(Tee', Λ)
     end
 end
