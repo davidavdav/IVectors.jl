@@ -54,7 +54,7 @@ end
 ## S: vector of Cstats (0th, 1st, 2nd order stats)
 ## ex: vectopr of expectations, i.e., tuples E[y], E[y y']
 ## v: projection matrix
-function updatevΣ{T<:AbstractFloat,T2}(S::Vector{Cstats{T,T2}}, ex::Vector, v::Matrix; updateΣ=false)
+function updatevΣ!{T<:AbstractFloat,T2}(S::Vector{Cstats{T,T2}}, ex::Vector, v::Matrix; updateΣ=false)
     @assert length(S) == length(ex)
     ng, nfea = size(first(S).F)     # number of components or Gaussians
     svl = ng*nfea                   # supervector lenght, CF
@@ -74,13 +74,13 @@ function updatevΣ{T<:AbstractFloat,T2}(S::Vector{Cstats{T,T2}}, ex::Vector, v::
         Base.LinAlg.BLAS.gemm!('N', 'T', 1.0, svec(s.F), μ, 1.0, C)
     end
     ## update v
-    v = Array(T, svl, nv)
+    ## v = Array(T, svl, nv)
     for c=1:ng
         range = ((c-1)*nfea+1) : c*nfea
         v[range,:] = C[range,:] / A[c] ## C[range,:] * inv(A[c])
     end
     if !updateΣ
-        return v
+        return
     else
         ## update Σ
         Σ = -reshape(sum(C .* v, 2), nfea, ng)'    # diag(C * v')
@@ -89,7 +89,7 @@ function updatevΣ{T<:AbstractFloat,T2}(S::Vector{Cstats{T,T2}}, ex::Vector, v::
             broadcast!(+, Σ, Σ, s.S)
         end
         broadcast!(/, Σ, Σ, N)
-        return v, Σ
+        return Σ
     end
 end
 
@@ -104,9 +104,9 @@ function em!{T1,T2}(ie::IExtractor{T1}, S::Vector{Cstats{T1,T2}}; nIter=1, updat
         print("Iteration ", i, "...")
         ex = expectation(S, v, Σ)
         if updateΣ
-            v, Σ = updatevΣ(S, ex, v, updateΣ=true)
+            Σ = updatevΣ!(S, ex, v, updateΣ=true)
         else
-            v = updatevΣ(S, ex, v)
+            updatevΣ!(S, ex, v)
         end
         println("done")
     end
@@ -122,9 +122,9 @@ function IExtractor{T1<:AbstractFloat,T2}(ubm::GMM, S::Vector{Cstats{T1,T2}}, nv
         print("Iteration ", i, "...")
         ex = expectation(S, v, Σ)
         if updateΣ
-            v, Σ = updatevΣ(S, ex, v, updateΣ=true)
+            Σ = updatevΣ!(S, ex, v, updateΣ=true)
         else
-            v = updatevΣ(S, ex, v)
+            updatevΣ!(S, ex, v)
         end
         println("done")
     end
