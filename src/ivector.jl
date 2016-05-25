@@ -43,8 +43,8 @@ function expectation{T1,T2}(s::Vector{Cstats{T1,T2}}, v::Matrix, Σ::Matrix)
 end
 
 ## As BLAS saxpy!
-function saxpy!(c::Matrix, a, b::Matrix)
-    length(c) == length(b) || error("Matrix sizes must match")
+function axpy!(c::Matrix, a, b::Matrix)
+    length(c) == length(b) || throw(DimensionMismatch("Input and output sizes must match"))
     for i in 1:length(c)
         c[i] += a * b[i]
     end
@@ -67,8 +67,8 @@ function updatevΣ{T<:AbstractFloat,T2}(S::Vector{Cstats{T,T2}}, ex::Vector, v::
         n = s.N
         N += n
         for c=1:ng
-            saxpy!(A[c], n[c], Σ)
-            ## Base.LinAlg.BLAS.axpy!(n[c], Σ, A[c]) # Eyyᵀ
+            ## axpy!(A[c], n[c], Σ)
+            Base.LinAlg.BLAS.axpy!(n[c], Σ, A[c]) # Eyyᵀ
         end
         # C += svec(s.F) * μ'          # Ey
         Base.LinAlg.BLAS.gemm!('N', 'T', 1.0, svec(s.F), μ, 1.0, C)
@@ -96,7 +96,7 @@ end
 import GaussianMixtures.em!
 
 function em!{T1,T2}(ie::IExtractor{T1}, S::Vector{Cstats{T1,T2}}; nIter=1, updateΣ=false)
-    v = ie.Tᵀ'
+    v = ie.T
     ng = length(S[1].N)
     nfea = length(ie.Λ) ÷ ng
     Σ = reshape(ie.Λ, nfea, ng)'
@@ -110,7 +110,6 @@ function em!{T1,T2}(ie::IExtractor{T1}, S::Vector{Cstats{T1,T2}}; nIter=1, updat
         end
         println("done")
     end
-    ie.Tᵀ = v'
     return ie
 end
 
@@ -136,13 +135,13 @@ IExtractor{T1<:AbstractFloat,T2}(S::Vector{Cstats{T1,T2}}, ubm::GMM, nvoices::In
 
 # extract an ivector using T-matrix and uncentered stats
 function ivector(ie::IExtractor, s::Cstats)
-    nv = size(ie.Tᵀ, 1)
+    nv = size(ie.T, 2)
     ng = length(s.N)
     nfea = length(ie.Λ) ÷ ng
-    TᵀΣF = ie.Tᵀ * (svec(s.F) .* ie.Λ)
+    TᵀΣF = ie.T' * (svec(s.F) .* ie.Λ)
     NΛ = vec(broadcast(*, s.N', reshape(ie.Λ, nfea, ng))) # Kenny-order
     ## w = inv(eye(nv) + ie.Tᵀ * broadcast(*, NΛ, ie.Tᵀ')) * TᵀΣF
-    TᵀNΛT = ie.Tᵀ * broadcast(*, NΛ, ie.Tᵀ')
+    TᵀNΛT = ie.T' * broadcast(*, NΛ, ie.T)
     w = Iplusx!(TᵀNΛT) \ TᵀΣF
     return w
 end
