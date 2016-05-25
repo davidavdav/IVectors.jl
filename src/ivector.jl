@@ -63,15 +63,15 @@ function updatevΣ!{T<:AbstractFloat,T2}(S::Vector{Cstats{T,T2}}, ex::Vector, v:
     A = map(x->zeros(nv,nv), 1:ng)
     C = zeros(svl, nv)
     for (s,e) in zip(S, ex)         # loop over all utterances
-        μ, Σ = e
+        Ey, Eyyᵀ = e
         n = s.N
         N += n
         for c=1:ng
             ## axpy!(A[c], n[c], Σ)
-            Base.LinAlg.BLAS.axpy!(n[c], Σ, A[c]) # Eyyᵀ
+            Base.LinAlg.BLAS.axpy!(n[c], Eyyᵀ, A[c]) # Eyyᵀ
         end
         # C += svec(s.F) * μ'          # Ey
-        Base.LinAlg.BLAS.gemm!('N', 'T', 1.0, svec(s.F), μ, 1.0, C)
+        Base.LinAlg.BLAS.gemm!('N', 'T', 1.0, svec(s.F), Ey, 1.0, C)
     end
     ## update v
     ## v = Array(T, svl, nv)
