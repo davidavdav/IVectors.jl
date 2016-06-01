@@ -24,30 +24,36 @@ ubm = GMM(ngauss, Data(x), kind=:diag)
 ```
 This may take a while, check out parallelization options in [GaussianMixtures.jl](https://github.com/davidavdav/GaussianMixtures.jl).  
 
-Now suppose that you want to use the same data to train an iVector extractor.  The first thing to do, is to extract centralized (but not scaled) statistics for the train data:
+Now suppose that you want to use the same data to train an iVector extractor.  The first thing to do, is to extract centralized and scaled statistics for the train data:
 ```julia
-cs = map(data->Cstats(ubm, data), x)
+css = map(data->CSstats(ubm, data), x)
 ```
-Again, this may take a while, you might consider `pmap()` instead.  `GaussianMixtures::Cstats` stores the zeroth and first order statistics w.r.t. the UBM.  The type is parameterized, and it apprears that `map()` is better at registering the type than a comprehension would do, so we advice to use `map()` here.
+Again, this may take a while, you might consider `pmap()` instead.  `GaussianMixtures::CSstats` stores the zeroth and first order statistics w.r.t. the UBM.  The type is parameterized, and it apprears that `map()` is better at registering the type than a comprehension would do, so we advice to use `map()` here.
 
 An iVector extractor can be trained now for a given number of voices (target dimension):
 ```julia
 using IVectors
 nvoices = 100
-ie = IExtractor(ubm, cs, nvoices)
+ie = IExtractor(css, nvoices; nIter=7)
 ```
 
 ## extracting iVectors
-iVectors are extracted using the same `Cstats` structure.  For a data matrix `data`:
+iVectors are extracted using the same `CSstats` structure.  For a data matrix `data`:
 ```julia
-ivec = ivector(ie, Cstats(ubm, data))
+ivec = ivector(ie, CSstats(ubm, data))
 ```
+A slightly more efficient way to extract ivectors is to use a bunch of files simultaneously:
+```julia
+blas_set_num_threads(2)
+css = map(data->CSstats(ubm, data), x) ## x is vector of data matrices
+ivecs = ivector(ie, css)
+```
+This implementation uses `Base.BLAS.gemm!()` to compute ivectors simultaneously for multiple `CSstats` objects, we have found that we're not gaining much speed by setting the number of openblas threads too high. 
 
 ## Status
 
 Current status of the package is that it 
- - needs validation
- - needs parallelization optimization
- - needs change from `Cstats` to `CSstats` (centered and scaled stats)
- - needs support for full covariance UBMs. 
-
+ - needs more validation
+ - needs support for full covariance UBMs.  This should happen in `CSstats`, though. 
+ - scoring (cosine distance is trivial)
+ - PLDA scoring 
