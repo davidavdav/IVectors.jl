@@ -12,7 +12,7 @@ end
 ## for g in Gaussians for f in features X[g,f] end end
 svec(x::Matrix) = vec(x')
 
-## I + x, but doing I + x in-memory
+## I + x, but doing I + x in-memory (not used)
 function Iplusx!{T}(x::Matrix{T})
     for i in 1:size(x,1)
         x[i,i] += one(T)
@@ -20,7 +20,7 @@ function Iplusx!{T}(x::Matrix{T})
     return x
 end
 
-## This constructs the T matrix from the IExtractor vector-of-component-T's
+## This constructs the T matrix from the IExtractor vector-of-component-T's (not used)
 ## This is actually inefficient, because it declares a lot of memory
 Tᵀ(ie::IExtractor) = hcat([Tc' for Tc in ie.T]...)
 
@@ -51,38 +51,38 @@ function posterior{Float<:AbstractFloat}(ie::IExtractor{Float}, s::CSstats{Float
 end
 
 ## same for an array of stats
-function posterior{T}(ie::IExtractor, s::Vector{CSstats{T}})
+function posterior{Float<:AbstractFloat}(ie::IExtractor{Float}, s::Vector{CSstats{Float}})
     pmap(x->posterior(ie, x), s)
 end
 
-## update v and Σ according to the maximum likelihood re-estimation,
+## update i-vector extractor according to the maximum likelihood re-estimation,
+## ie: current i-vector extractor
 ## S: vector of Cstats (0th, 1st, 2nd order stats)
-## ex: vectopr of expectations, i.e., tuples E[y], E[y y']
-## v: projection matrix
-function updateie!{T<:AbstractFloat}(ie::IExtractor, S::Vector{CSstats{T}}, post::Vector)
+## post: vector of postriors / expectations, i.e., tuples E[y], E[y y']
+function updateie!{Float<:AbstractFloat}(ie::IExtractor{Float}, S::Vector{CSstats{Float}}, post::Vector)
     @assert length(S) == length(post)
     ng = length(ie.T)
     nfea, nv = size(ie.T[1])
-    A = map(x -> zeros(nv, nv), 1:ng)
-    C = zeros(ng * nfea, nv)
+    A = map(x -> zeros(Float, nv, nv), 1:ng)
+    C = zeros(Float, ng * nfea, nv)
     for (s, p) in zip(S, post)         # loop over all utterances
         Ey, Eyyᵀ = p
         for c in 1:ng
             Base.LinAlg.BLAS.axpy!(s.n[c], Eyyᵀ, A[c]) # Eyyᵀ
         end
-        # C += svec(s.F) * Ey
+        # C += svec(s.f) * Ey
         Base.LinAlg.BLAS.gemm!('N', 'T', 1.0, svec(s.f), Ey, 1.0, C)
     end
     for c=1:ng
-        range = ((c-1)*nfea+1) : c*nfea
+        range = ((c-1)*nfea+1) : c*nfea ## 1-based indexing, you are ugly!
         ie.T[c][:] = C[range,:] / A[c] ## C[range,:] * inv(A[c])
-        Base.BLAS.gemm!('T', 'N', 1.0, ie.T[c], ie.T[c], 0.0, ie.TᵀT[c])  ## TTᵀ[c] = T[c]' * T
+        Base.BLAS.gemm!('T', 'N', 1.0, ie.T[c], ie.T[c], 0.0, ie.TᵀT[c])  ## TᵀT[c] = T[c]' * T
     end
 end
 
 import GaussianMixtures.em!
 
-function em!{T1}(ie::IExtractor{T1}, S::Vector{CSstats{T1}}; nIter=1)
+function em!{Float<:AbstractFloat}(ie::IExtractor{Float}, S::Vector{CSstats{Float}}; nIter=1)
     for i=1:nIter
         print("Iteration ", i, "...")
         post = posterior(ie, S)
@@ -93,7 +93,7 @@ function em!{T1}(ie::IExtractor{T1}, S::Vector{CSstats{T1}}; nIter=1)
 end
 
 ## Train an ivector extractor matrix
-function IExtractor{T1<:AbstractFloat}(S::Vector{CSstats{T1}}, nvoices::Int; nIter=7)
+function IExtractor{Float<:AbstractFloat}(S::Vector{CSstats{Float}}, nvoices::Int; nIter=7)
     ng, nfea = size(first(S).f)
     T = map(i -> randn(nfea, nvoices), 1:ng)
     ie = IExtractor(T)
@@ -107,13 +107,13 @@ function IExtractor{T1<:AbstractFloat}(S::Vector{CSstats{T1}}, nvoices::Int; nIt
 end
 
 ## extract an ivector using T-matrix and centered stats
-function ivector(ie::IExtractor, s::CSstats)
+function ivector{Float<:AbstractFloat}(ie::IExtractor{Float}, s::CSstats{Float})
     w = posterior(ie, s, Linv=false)
     return w
 end
 
 ## extract multiple ivectors efficiently
-function ivector{Float}(ie::IExtractor{Float}, S::Vector{CSstats{Float}})
+function ivector{Float<:AbstractFloat}(ie::IExtractor{Float}, S::Vector{CSstats{Float}})
     nvoices = size(ie.T[1], 2)
     nfea, nutt = size(S[1].f, 2), length(S)
     covs = repmat(vec(eye(Float, nvoices)), 1, length(S)) ## nvoices^2 x nutt
