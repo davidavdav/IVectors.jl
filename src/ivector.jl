@@ -29,7 +29,7 @@ Tᵀ(ie::IExtractor) = hcat([Tc' for Tc in ie.T]...)
 ## ie.T: ng x (nfea x nvoices) matrix
 ## result is a Nvoices vector and Nvoices x Nvoices matrix
 function posterior{Float<:AbstractFloat}(ie::IExtractor{Float}, s::CSstats{Float}; Linv=true)
-    nvoices = size(ie.T[1], 2)
+    nvoices = size(first(ie.T), 2)
     cov = eye(Float, nvoices)
     for (n, TᵀT) in zip(s.n, ie.TᵀT)
         Base.BLAS.axpy!(n, TᵀT, cov)
@@ -62,7 +62,7 @@ end
 function updateie!{Float<:AbstractFloat}(ie::IExtractor{Float}, S::Vector{CSstats{Float}}, post::Vector)
     @assert length(S) == length(post)
     ng = length(ie.T)
-    nfea, nv = size(ie.T[1])
+    nfea, nv = size(first(ie.T))
     A = map(x -> zeros(Float, nv, nv), 1:ng)
     C = zeros(Float, ng * nfea, nv)
     for (s, p) in zip(S, post)         # loop over all utterances
@@ -114,8 +114,8 @@ end
 
 ## extract multiple ivectors efficiently
 function ivector{Float<:AbstractFloat}(ie::IExtractor{Float}, S::Vector{CSstats{Float}})
-    nvoices = size(ie.T[1], 2)
-    nfea, nutt = size(S[1].f, 2), length(S)
+    nvoices = size(first(ie.T), 2)
+    nfea, nutt = size(first(S).f, 2), length(S)
     covs = repmat(vec(eye(Float, nvoices)), 1, length(S)) ## nvoices^2 x nutt
     n = hcat([s.n for s in S]...) ## ng x nutt
     for (i, TᵀT) in enumerate(ie.TᵀT)
