@@ -10,15 +10,10 @@ function FileIO.save(file::Union{AbstractString,IO}, ie::IExtractor)
     end
 end
 
-FileIO.load(file::AbstractString, ::Type{IExtractor}) = load(File(format"IExtractor", file))
-#FileIO.load(file, "IExtractor")
+Base.eltype{format}(::FileIO.File{FileIO.DataFormat{format}}) = format
 
-Base.eltype{T}(::FileIO.File{FileIO.DataFormat{T}}) = T
-
-function detectiextractor(file::AbstractString)
-    eltype(FileIO.query(file)) == :JLD && JLD.jldopen(file) do fd
-        JLD.exists(fd, "IExtractor")
-    end
+detectiextractor(file::AbstractString) = eltype(FileIO.query(file)) == :JLD && JLD.jldopen(file) do fd
+    JLD.exists(fd, "IExtractor")
 end
 
 FileIO.add_format(format"IExtractor", detectiextractor, ".iex", [:IVectors])
@@ -26,3 +21,6 @@ FileIO.add_format(format"IExtractor", detectiextractor, ".iex", [:IVectors])
 FileIO.load(file::File{format"IExtractor"}) = JLD.jldopen(filename(file)) do fd
     read(fd, "IExtractor")
 end
+
+FileIO.load(file::AbstractString, ::Type{IExtractor}) = load(File(format"IExtractor", file))
+#FileIO.load(file, "IExtractor")
