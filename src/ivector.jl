@@ -24,18 +24,24 @@ end
 ## This is actually inefficient, because it declares a lot of memory
 Tᵀ(ie::IExtractor) = hcat([Tc' for Tc in ie.T]...)
 
+## Some utlity functions
+nfea(ie::IExtractor) = size(first(ie.T), 1)
+nvoices(ie::IExtractor) = size(first(ie.T), 2)
+ngauss(ie::IExtractor) = length(ie.T)
+Base.size(ie::IExtractor) = length(ie.T), size(first(ie.T))...
+
 ## compute variance and mean of the posterior distribution of the hidden variables
 ## s: centered and scaled statistics (.n .f),
 ## ie.T: ng x (nfea x nvoices) matrix
 ## result is a Nvoices vector and Nvoices x Nvoices matrix
 function posterior{Float<:AbstractFloat}(ie::IExtractor{Float}, s::CSstats{Float}; Linv=true)
-    nvoices = size(first(ie.T), 2)
-    cov = eye(Float, nvoices)
+    nv = nvoices(ie)
+    cov = eye(Float, nv)
     for (n, TᵀT) in zip(s.n, ie.TᵀT)
         Base.BLAS.axpy!(n, TᵀT, cov)
     end
     ## Tᵀf = Tᵀ(ie) * svec(s.f)
-    Tᵀf = zeros(Float, nvoices)
+    Tᵀf = zeros(Float, nv)
     for (c, Tc) in enumerate(ie.T)
         Base.BLAS.gemm!('T', 'T', 1.0, Tc, sub(s.f, c, :), 1.0, Tᵀf)
     end
@@ -61,8 +67,7 @@ end
 ## post: vector of postriors / expectations, i.e., tuples E[y], E[y y']
 function updateie!{Float<:AbstractFloat}(ie::IExtractor{Float}, S::Vector{CSstats{Float}}, post::Vector)
     @assert length(S) == length(post)
-    ng = length(ie.T)
-    nfea, nv = size(first(ie.T))
+    ng, nfea, nv = size(ie)
     A = map(x -> zeros(Float, nv, nv), 1:ng)
     C = zeros(Float, ng * nfea, nv)
     for (s, p) in zip(S, post)         # loop over all utterances
@@ -114,19 +119,19 @@ end
 
 ## extract multiple ivectors efficiently
 function ivector{Float<:AbstractFloat}(ie::IExtractor{Float}, S::Vector{CSstats{Float}})
-    nvoices = size(first(ie.T), 2)
+    nv = nvoices(ie)
     nfea, nutt = size(first(S).f, 2), length(S)
-    covs = repmat(vec(eye(Float, nvoices)), 1, length(S)) ## nvoices^2 x nutt
+    covs = repmat(vec(eye(Float, nv)), 1, length(S)) ## nvoices^2 x nutt
     n = hcat([s.n for s in S]...) ## ng x nutt
     for (i, TᵀT) in enumerate(ie.TᵀT)
         Base.BLAS.gemm!('N', 'N', 1.0, vec(TᵀT), sub(n, i, :), 1.0, covs) # nvoices^2 x 1, 1 x nutt, nvoices^2 x nutt
     end
     ## Tᵀf = Tᵀ(ie) * svec(s.f)
-    Tᵀfs = zeros(Float, nvoices, nutt) ## nvoices x nutt
+    Tᵀfs = zeros(Float, nv, nutt) ## nvoices x nutt
     f = cat(3, [s.f for s in S]...)
     for (c, Tc) in enumerate(ie.T)
         fc = reshape(f[c, :, :], nfea, nutt)
         Base.BLAS.gemm!('T', 'N', 1.0, Tc, fc, 1.0, Tᵀfs) # nfea x nvoices, nfea x nutt, nvoices x nutt
     end
-    map(i -> reshape(covs[:,i], nvoices, nvoices) \ reshape(Tᵀfs[:,i], nvoices), 1:nutt)
+    map(i -> reshape(covs[:,i], nv, nv) \ reshape(Tᵀfs[:,i], nv), 1:nutt)
 end

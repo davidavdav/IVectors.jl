@@ -16,7 +16,9 @@ detectiextractor(file::AbstractString) = eltype(FileIO.query(file)) == :JLD && J
     JLD.exists(fd, "IExtractor")
 end
 
-FileIO.add_format(format"IExtractor", detectiextractor, ".iex", [:IVectors])
+if ! (:IExtractor in keys(FileIO.sym2info))
+    FileIO.add_format(format"IExtractor", detectiextractor, ".iex", [:IVectors])
+end
 
 FileIO.load(file::File{format"IExtractor"}) = JLD.jldopen(filename(file)) do fd
     read(fd, "IExtractor")
