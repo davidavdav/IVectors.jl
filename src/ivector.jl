@@ -1,6 +1,8 @@
 ## ivector.jl  Various routines for ivector extraction
 ## (c) 2013--2014 David A. van Leeuwen
 
+import Compat.view
+
 ## a global for timing alternative code...
 alt=false
 
@@ -30,6 +32,8 @@ nvoices(ie::IExtractor) = size(first(ie.T), 2)
 ngauss(ie::IExtractor) = length(ie.T)
 Base.size(ie::IExtractor) = length(ie.T), size(first(ie.T))...
 
+gemm_transpose = VERSION < v"0.5-dev" ? 'T' : 'N' ## arraymageddon
+
 ## compute variance and mean of the posterior distribution of the hidden variables
 ## s: centered and scaled statistics (.n .f),
 ## ie.T: ng x (nfea x nvoices) matrix
@@ -43,7 +47,7 @@ function posterior{Float<:AbstractFloat}(ie::IExtractor{Float}, s::CSstats{Float
     ## Tᵀf = Tᵀ(ie) * svec(s.f)
     Tᵀf = zeros(Float, nv)
     for (c, Tc) in enumerate(ie.T)
-        Base.BLAS.gemm!('T', 'T', 1.0, Tc, sub(s.f, c, :), 1.0, Tᵀf)
+        Base.BLAS.gemm!('T', gemm_transpose, 1.0, Tc, view(s.f, c, :), 1.0, Tᵀf)
     end
     if Linv
         L⁻¹ = inv(cov)
@@ -124,7 +128,7 @@ function ivector{Float<:AbstractFloat}(ie::IExtractor{Float}, S::Vector{CSstats{
     covs = repmat(vec(eye(Float, nv)), 1, length(S)) ## nvoices^2 x nutt
     n = hcat([s.n for s in S]...) ## ng x nutt
     for (i, TᵀT) in enumerate(ie.TᵀT)
-        Base.BLAS.gemm!('N', 'N', 1.0, vec(TᵀT), sub(n, i, :), 1.0, covs) # nvoices^2 x 1, 1 x nutt, nvoices^2 x nutt
+        Base.BLAS.gemm!('N', 'N', 1.0, vec(TᵀT), view(n, i, :), 1.0, covs) # nvoices^2 x 1, 1 x nutt, nvoices^2 x nutt
     end
     ## Tᵀf = Tᵀ(ie) * svec(s.f)
     Tᵀfs = zeros(Float, nv, nutt) ## nvoices x nutt
